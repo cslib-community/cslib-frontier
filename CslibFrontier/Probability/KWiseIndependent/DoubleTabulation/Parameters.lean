@@ -134,8 +134,7 @@ theorem mul_doubleTabCodeBound_le {c_exp b k A : ℕ} (hb : doubleTabMinB c_exp 
         rw [Nat.mul_assoc, ← Nat.pow_add]
         congr 2
         ring
-    _ ≤ 2 ^ (2 * b) * b ^ (24 * c + 8) :=
-        Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) (by omega))
+    _ ≤ 2 ^ (2 * b) * b ^ (24 * c + 8) := by gcongr <;> omega
     _ ≤ 2 ^ (2 * b) * 2 ^ b :=
         Nat.mul_le_mul_left _ (Nat.pow_le_two_pow (by omega) hb_min)
     _ = 2 ^ (3 * b) := by

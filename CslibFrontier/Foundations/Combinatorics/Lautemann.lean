@@ -224,8 +224,7 @@ theorem BitString.two_mul_card_filter_exists_forall_add_mem_le {n k : ℕ} (S : 
     _ = 2 * 2 ^ m * (2 ^ n * #S) ^ k := by
         rw [BitString.card]
         ring
-    _ ≤ (2 ^ n) ^ k * (2 ^ m) ^ k :=
-        Nat.mul_le_mul hpow (Nat.pow_le_pow_left hS k)
+    _ ≤ (2 ^ n) ^ k * (2 ^ m) ^ k := by gcongr
     _ = (2 ^ n) ^ k * 2 ^ (k * m) := by rw [← pow_mul 2 m k, Nat.mul_comm m k]
 
 private theorem two_pow_lt_two_mul_pow (hm : 2 ≤ m) : 2 ^ m < (2 * m) ^ m := by

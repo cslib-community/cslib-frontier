@@ -181,7 +181,7 @@ theorem card_filter_card_ge_le {α : Type*} {p d : ℕ} (hp : 1 ≤ p) {Δ : Fin
         obtain ⟨r, rfl⟩ : ∃ r, q = r + 1 := ⟨q - 1, by omega⟩
         simp only [Nat.add_sub_cancel]
         calc u ^ (r + 1) + u ^ r = (u + 1) * u ^ r := by ring
-          _ ≤ (u + 1) * (u + 1) ^ r := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) r)
+          _ ≤ (u + 1) * (u + 1) ^ r := by gcongr <;> omega
           _ = (u + 1) ^ (r + 1) := (pow_succ' _ _).symm
       calc #{I ∈ Γ | q + 1 ≤ #I}
           = #{I ∈ Γdel | q + 1 ≤ #I} + #{J ∈ Γlink | q ≤ #J} := by

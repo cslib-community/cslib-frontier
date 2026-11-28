@@ -338,10 +338,9 @@ theorem nodeCount_mulGadget_le {S : Finset (Fin d)} {a : ι → K}
       _ = #P.parts * W + Fintype.card (Quotient (SameCycle.setoid π)) * (m + 1) + 1 := by
           rw [sum_add_distrib, ← sum_mul, hfib, sum_const, card_univ, smul_eq_mul]
       _ ≤ d * W + d * (m + 1) + 1 := by gcongr
-  have hB : Fintype.card (Finpartition S) ≤ (d + 1) ^ d :=
-    (Fintype.card_finpartition_le S).trans <|
-      (Nat.pow_le_pow_left (hSd.trans (Nat.le_succ d)) _).trans
-        (Nat.pow_le_pow_right (Nat.succ_pos d) hSd)
+  have hB : Fintype.card (Finpartition S) ≤ (d + 1) ^ d := by
+    refine (Fintype.card_finpartition_le S).trans ?_
+    gcongr <;> omega
   -- The sums over the set partitions, the permutations and the subsets of `Z`.
   rw [nodeCount_sumOn]
   refine (Nat.add_le_add_right ((sum_le_sum (g := fun _ => d.factorial * (2 ^ d * τ + 1) + 1)

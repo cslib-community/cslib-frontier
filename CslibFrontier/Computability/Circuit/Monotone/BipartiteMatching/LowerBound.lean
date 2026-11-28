@@ -163,9 +163,9 @@ theorem factorial_le_or_four_pow_le_mul_size (hs : 1 ≤ s) (hq : (q * s) ^ 2 < 
     cases hpm : bipartitePerfectMatching n (ofColoring c)
     · exact Or.inr ⟨mem_univ _, rfl, W, hW, (mem_filter.1 hc).2⟩
     · exact Or.inl ⟨mem_univ _, rfl⟩
-  have h1 : 4 ^ n ≤ X * 2 ^ s :=
-    hA ▸ Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos
-      ((outputApproximator C).card_le_of_mem hW))
+  have h1 : 4 ^ n ≤ X * 2 ^ s := by
+    rw [← hA]
+    gcongr; exact (outputApproximator C).card_le_of_mem hW
   have h2 : X * 2 ^ s ≤ B * 2 ^ s + F * 2 ^ s := by
     rw [← add_mul]
     exact Nat.mul_le_mul_right _ hXBF

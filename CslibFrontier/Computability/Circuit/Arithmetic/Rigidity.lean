@@ -309,8 +309,7 @@ theorem Computes.mul_log_log_lt_size {C k e : ℕ} (hC : 0 < C) (hk : 0 < k) (he
   have hbound := hc.rigidity_le hfan hdepthD htD
   -- the rigidity at rank `2 * t * c.size / D` is below the hypothesis, so that rank exceeds `n / e`
   have hrank : n / e < 2 * t * c.size / D := lt_of_not_ge fun hle =>
-    hrig.not_ge (((A.rigidity_antitone hle).trans hbound).trans
-      (Nat.mul_le_mul_left n (Nat.pow_le_pow_right two_pos hpow)))
+    hrig.not_ge ((A.rigidity_antitone hle).trans (hbound.trans (by gcongr)))
   have hDpos : 0 < D := Nat.succ_pos _
   have h1 : (n / e + 1) * D ≤ 2 * t * c.size :=
     (Nat.le_div_iff_mul_le hDpos).1 (Nat.succ_le_of_lt hrank)

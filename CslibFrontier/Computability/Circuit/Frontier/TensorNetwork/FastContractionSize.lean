@@ -316,8 +316,7 @@ theorem active_numbers (ha : active x = true) (hM : x.edges ≤ x.scale) :
     have e3 : 8 * x.edges * (slots x + 1) ≤ 8 * x.scale * x.scale :=
       Nat.mul_le_mul (Nat.mul_le_mul_left _ hM) ha1
     have h4 : x.scale ^ 4 ≤ (x.scale + 1) ^ 4 := Nat.pow_le_pow_left (Nat.le_succ _) 4
-    have h2 : x.scale ^ 2 ≤ (x.scale + 1) ^ 4 :=
-      (Nat.pow_le_pow_left (Nat.le_succ _) 2).trans (Nat.pow_le_pow_right (by omega) (by omega))
+    have h2 : x.scale ^ 2 ≤ (x.scale + 1) ^ 4 := by gcongr <;> omega
     have e4 : x.scale * (2 * x.scale) * (4 * x.scale) * x.scale + 8 * (4 * x.scale) * x.scale +
         8 * x.scale * x.scale = 8 * x.scale ^ 4 + 40 * x.scale ^ 2 := by ring
     omega

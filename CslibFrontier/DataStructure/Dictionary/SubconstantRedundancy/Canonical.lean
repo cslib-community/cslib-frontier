@@ -666,8 +666,8 @@ private theorem canonical_conc_bound {U V n R p_min q_min p_max q_max : ℕ}
       have hprod : 150 * m ≤ L ^ 2 :=
         (by omega : 150 * m ≤ 750 * L).trans
           ((Nat.mul_le_mul_right L (by omega)).trans_eq (sq L).symm)
-      exact ((Nat.pow_le_pow_left hprod 3).trans_eq (Nat.pow_mul L 2 3).symm).trans
-        (Nat.pow_le_pow_right (by omega) (by decide))
+      calc (150 * m) ^ 3 ≤ (L ^ 2) ^ 3 := by gcongr
+        _ ≤ L ^ 8 := by rw [← pow_mul]; gcongr <;> omega
     have h1_le : 1 ≤ k := by have := two_le_treeDepth U r; omega
     have hNT1 := (numNodes_mul_targetSize_bounds (hT_pos 1 h1_le) (hT_le 1 h1_le)).1
     have hT1_ge : 2 * L ^ 8 ≤ targetSize n U r k 1 := by

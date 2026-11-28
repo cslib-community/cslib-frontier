@@ -185,8 +185,7 @@ theorem card_le_pow_of_isImplicationMinimal {r k : ℕ} (hr : 2 ≤ r) {F : Fins
           rw [← mul_sum, sum_pow_mul_eq_add_pow]
           congr 2
           omega
-      _ ≤ r ^ (k - D.card) * r ^ D.card :=
-          Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (Nat.sub_le _ _) _)
+      _ ≤ r ^ (k - D.card) * r ^ D.card := by gcongr; omega
       _ = r ^ k := by rw [← pow_add, Nat.sub_add_cancel hDk]
 
 end Cslib

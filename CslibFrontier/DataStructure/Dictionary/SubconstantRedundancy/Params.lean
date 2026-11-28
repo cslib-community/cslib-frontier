@@ -273,8 +273,7 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
       have hd : t / 32 - 9 < 2 ^ (t / 32 - 9) := Nat.lt_two_pow_self
       have ht_2m : t ≤ 2 ^ 9 * 2 ^ (t / 32 - 9) := by omega
       rw [← pow_add, Nat.add_sub_cancel' (by omega)] at ht_2m
-      calc 512 * t ^ 31 ≤ 2 ^ 9 * (2 ^ (t / 32)) ^ 31 :=
-            Nat.mul_le_mul_left _ (Nat.pow_le_pow_left ht_2m 31)
+      calc 512 * t ^ 31 ≤ 2 ^ 9 * (2 ^ (t / 32)) ^ 31 := by gcongr; decide
         _ = 2 ^ (9 + t / 32 * 31) := by rw [← pow_mul, ← pow_add]
         _ ≤ L := (Nat.pow_le_pow_right Nat.two_pos (by omega)).trans ht_pow
     have hsub_half : P.subtreeMetaBits 3 + P.idBits 3 ≤ L / 2 := by
@@ -351,9 +350,9 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
     · exact (Nat.iterLog_anti_left U (by omega : 2 ≤ j)).trans hiter2_le
     · omega
   have hscale_t11 : 3 ≤ P.depth → ∀ j, 3 ≤ j → 2 * levelScale U r k j ^ 9 ≤ t ^ 11 :=
-    fun h3 j hj3 =>
-      calc 2 * levelScale U r k j ^ 9
-          ≤ 2 * (3 * t) ^ 9 := Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left (hls_3t h3 j hj3) 9)
+    fun h3 j hj3 => by
+      have hscale := hls_3t h3 j hj3
+      calc 2 * levelScale U r k j ^ 9 ≤ 2 * (3 * t) ^ 9 := by gcongr
         _ = 2 * 3 ^ 9 * t ^ 9 := by ring
         _ ≤ t ^ 2 * t ^ 9 := Nat.mul_le_mul_right _
             ((by norm_num : 2 * 3 ^ 9 ≤ 300 ^ 2).trans (Nat.pow_le_pow_left ht_ge 2))

@@ -262,10 +262,10 @@ theorem card_exists_lt_two_pow_isDepthTwoOverWeights_agree_andreev_le (b m : ℕ
     have hle : ((2 ^ b + 1) * min (#W + 1) ((2 ^ b + 1) ^ b)) ^ q *
         (2 ^ b + 1) ^ (q + b + 1) ≤ andreevWeightCount b M q := by
       unfold andreevWeightCount
-      exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (Nat.mul_le_mul_left _ hM) q)
+      gcongr
     exact (Nat.cast_le (α := ℝ)).mpr (hcount.trans hle)
   rw [mul_assoc]
-  exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hH (by positivity)) (by positivity)
+  gcongr
 
 /-! ### Simultaneous subcube averaging via Cauchy–Schwarz -/
 
@@ -319,7 +319,7 @@ theorem card_eval_eq_andreev_le_of_unforced_mean_le {b m : ℕ} (hm : 0 < m)
           have hhalf : (2 : ℝ) ^ b / 2 ≤ α * Real.sqrt (U σ w : ℝ) := by
             rw [show (2 : ℝ) ^ b / 2 = (Real.sqrt ((2 : ℝ) ^ b) / 2) * Real.sqrt ((2 : ℝ) ^ b) by
               rw [div_mul_eq_mul_div, Real.mul_self_sqrt h2b_pos.le]]
-            exact mul_le_mul hα (Real.sqrt_le_sqrt h2b_le) (by positivity) hα0
+            gcongr
           linarith only [hle_2b, hhalf, hβ]
     have hsum_eq : (∑ w, agree σ w) = (2 : ℝ) ^ b * A := by
       have hnat := sum_card_filter_embedUpdate (andreevLiveVar_injective b m σ)

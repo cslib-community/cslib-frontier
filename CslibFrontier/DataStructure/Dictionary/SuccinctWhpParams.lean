@@ -533,8 +533,8 @@ theorem two_mul_doubleTabCodeBound_le_pow_bCharWhp {c n_max : ℕ} (hth : whpThr
       rw [show 2 * c' * (2 * c' + ell) = 4 * c' ^ 2 + 2 * c' * ell by ring]; linarith
     have he2 : 3 * c' ≤ 3 * c' * ell := Nat.le_mul_of_pos_right (3 * c') hell
     calc (c' * kIndepWhp c n_max) ^ (2 * c') * d
-        ≤ (2 ^ (2 * c' + ell)) ^ (2 * c') * 2 ^ (3 * c') :=
-          Nat.mul_le_mul (Nat.pow_le_pow_left hck (2 * c')) (dTabWhp_le_two_pow c)
+        ≤ (2 ^ (2 * c' + ell)) ^ (2 * c') * 2 ^ (3 * c') := by
+          gcongr; exact dTabWhp_le_two_pow c
       _ = 2 ^ (2 * c' * (2 * c' + ell) + 3 * c') := by
           rw [← Nat.pow_mul, Nat.mul_comm (2 * c' + ell) (2 * c'), ← Nat.pow_add]
       _ ≤ 2 ^ (6 * c' ^ 2 * ell + 3 * c' * ell) := Nat.pow_le_pow_right (by decide) (by omega)
@@ -552,8 +552,8 @@ theorem two_mul_doubleTabCodeBound_le_pow_bCharWhp {c n_max : ℕ} (hth : whpThr
   calc 2 * doubleTabCodeBound c' d q (kIndepWhp c n_max)
       = (2 * c') * ((c' * kIndepWhp c n_max) ^ (2 * c') * d) ^ q := by
         unfold doubleTabCodeBound; ring
-    _ ≤ 2 ^ (2 * c') * (2 ^ (6 * c' ^ 2 * ell + 3 * c' * ell)) ^ q :=
-        Nat.mul_le_mul (@Nat.lt_two_pow_self (2 * c')).le (Nat.pow_le_pow_left hterm q)
+    _ ≤ 2 ^ (2 * c') * (2 ^ (6 * c' ^ 2 * ell + 3 * c' * ell)) ^ q := by
+        gcongr; exact Nat.lt_two_pow_self.le
     _ = 2 ^ (2 * c' + q * (6 * c' ^ 2 * ell + 3 * c' * ell)) := by
         rw [← Nat.pow_mul, Nat.mul_comm _ q, ← Nat.pow_add]
     _ ≤ 2 ^ (codeExpWhp c * ell) := Nat.pow_le_pow_right (by decide) hexp_le

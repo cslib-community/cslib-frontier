@@ -108,7 +108,7 @@ private theorem add_two_pow_lt_add_one_pow_succ {d : ℕ} (hd : 1 ≤ d) :
   have hpow : (1 + 1 / u) ^ d ≤ Real.exp (d * (1 / u)) := by
     rw [Real.exp_natCast_mul]
     exact pow_le_pow_left₀ (by positivity)
-      (by linarith [Real.add_one_le_exp (1 / u)]) d
+      (by simpa only [add_comm] using Real.add_one_le_exp (1 / u)) d
   have hexp_lt : (1 + 1 / u) ^ d < u :=
     (hpow.trans_lt (Real.exp_lt_exp.2 (by rw [mul_one_div, div_lt_one hu_pos]; linarith))).trans_le
       (exp_one_le_four.trans hu4)
@@ -324,8 +324,7 @@ theorem polynomialSmoothLam_mono {j d : ℕ} (hjd : j ≤ d) :
       have := (div_lt_one (by positivity)).2 hφm_lt
       have : 0 ≤ polynomialRoot (k + 1 + 1) / (((k + 1 + 1 : ℕ) : ℝ) + 1) := by positivity
       nlinarith
-    exact mul_le_mul hcoef (pow_le_pow_left₀ (by positivity) (by linarith) k)
-      (by positivity) (by positivity)
+    gcongr
 
 /-! ### Division-free polynomial smoothness inequalities -/
 

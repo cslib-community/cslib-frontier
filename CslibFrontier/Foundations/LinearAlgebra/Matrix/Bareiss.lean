@@ -449,11 +449,11 @@ theorem abs_bareissMatrix_le (A : Matrix (Fin m) (Fin n) ℤ) {B : ℕ}
   by_cases hrow : ∃ a : Fin k, S a = i
   · obtain ⟨a, rfl⟩ := hrow
     refine (abs_bareissMatrix_pivot_le A hA hS C a j).trans ?_
-    exact_mod_cast Nat.mul_le_mul (Nat.factorial_le (Nat.le_succ k))
-      ((Nat.pow_le_pow_left (Nat.le_succ B) k).trans
-        (Nat.pow_le_pow_right (Nat.succ_pos B) (Nat.le_succ k)))
+    norm_cast
+    gcongr <;> omega
   · refine (abs_bareissMatrix_nonPivot_le A hA C (not_exists.1 hrow) j).trans ?_
-    exact_mod_cast Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.le_succ B) (k + 1))
+    norm_cast
+    gcongr; omega
 
 /-- Pivot determinant magnitude bound: `|pivotDet A S C| ≤ k! * B ^ k`. -/
 theorem abs_pivotDet_le (A : Matrix (Fin m) (Fin n) ℤ) {B : ℕ}

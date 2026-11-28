@@ -332,8 +332,7 @@ private theorem exp_lt_card_relatedPureLowerMachine {k : ℕ} (hk : 2 ≤ k) :
   have hexp1 : Real.exp 1 < (2.72 : ℝ) := Real.exp_one_lt_d9.trans (by norm_num)
   have hratio : (2 : ℝ) * (2.72 : ℝ) ^ k ≤ (4 : ℝ) ^ k := by
     rw [show k = 2 + (k - 2) by omega, pow_add, pow_add, ← mul_assoc]
-    exact mul_le_mul (by norm_num) (pow_le_pow_left₀ (by norm_num) (by norm_num) _)
-      (by positivity) (by positivity)
+    gcongr <;> norm_num
   have hexpk : Real.exp (k : ℝ) < (2.72 : ℝ) ^ k := by
     rw [show (k : ℝ) = (k : ℕ) * (1 : ℝ) by ring, Real.exp_natCast_mul]
     exact pow_lt_pow_left₀ hexp1 (Real.exp_pos 1).le (by omega)

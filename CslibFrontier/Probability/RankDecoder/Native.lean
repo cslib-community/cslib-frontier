@@ -216,6 +216,8 @@ theorem nativeCertificate_expTimePolySpace {enc : α ↪ List Bool}
       (stateEncoding enc ((step mass depth)^[j] (a, [], rank a))).length ≤ B a :=
     (state_length_iterate_le enc mass depth j (a, [], rank a)).trans
       (Nat.add_le_add_left (Nat.mul_le_mul_left 2 hj) _)
+  have hpow (a : α) (j : ℕ) (hj : j ≤ depth a) :=
+    Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) d
   have hloop := NativeCertificate.ExpTimePolySpace.iterate_of_bounds
     (NativeCertificate.ofPolyTime hd) (NativeCertificate.ofPolyTime (initial_polyTime hr))
     (stepCertificate hd cm) (NativeCertificate.ofPolyTime_isPolynomial hd)
@@ -229,10 +231,10 @@ theorem nativeCertificate_expTimePolySpace {enc : α ↪ List Bool}
       calc _ ≤ C * 2 ^ E a *
             ((stateEncoding enc ((step mass depth)^[j] (a, [], rank a))).length + 1) ^ d := h
         _ ≤ C * 2 ^ E a * (B a + 1) ^ d :=
-            Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) d)
+            Nat.mul_le_mul_left _ (hpow a j hj)
         _ = _ := by ring)
     (fun a j hj => (hround ((step mass depth)^[j] (a, [], rank a))).2.trans
-      (Nat.mul_le_mul_left C (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a j hj) 1) d)))
+      (Nat.mul_le_mul_left C (hpow a j hj)))
     hstate
   exact hloop
 

@@ -989,8 +989,8 @@ theorem one_le_stageEntryBound (m n B : ℕ) : 1 ≤ stageEntryBound m n B :=
 
 theorem stageEntryBound_mono_left {m n₁ n₂ B : ℕ} (h : n₁ ≤ n₂) :
     stageEntryBound m n₁ B ≤ stageEntryBound m n₂ B := by
-  have hmin : min m n₁ + 1 ≤ min m n₂ + 1 := by omega
-  exact Nat.mul_le_mul (Nat.factorial_le hmin) (Nat.pow_le_pow_right B.succ_pos hmin)
+  unfold stageEntryBound
+  gcongr
 
 theorem size_stageEntryBound_le (m n B : ℕ) :
     (stageEntryBound m n B).size ≤
@@ -1021,17 +1021,15 @@ theorem bareissInv_entry_bound {T : IntTable} {c : ℕ} {st : BareissState}
   have hS_inj : Function.Injective (finSel st.pivotRows rfl hinv.row_lt) := fun _ _ ha =>
     List.nodup_iff_injective_getElem.mp hinv.row_nodup (congrArg Fin.val ha)
   have hmono : ((st.pivotRows.length + 1).factorial * (B + 1) ^ (st.pivotRows.length + 1) : ℕ) ≤
-      stageEntryBound T.numRows T.numCols B :=
-    Nat.mul_le_mul (Nat.factorial_le (Nat.add_le_add_right hk_le 1))
-      (Nat.pow_le_pow_right B.succ_pos (Nat.add_le_add_right hk_le 1))
+      stageEntryBound T.numRows T.numCols B := by
+    unfold stageEntryBound
+    gcongr
   refine ⟨fun i j => ?_, ?_⟩
   · rw [hinv.table_eq i j]
     exact (Matrix.abs_bareissMatrix_le T.toMatrix hB hS_inj _ i j).trans (Int.ofNat_le.mpr hmono)
   · rw [hinv.pivotDet_eq]
     refine (Matrix.abs_pivotDet_le T.toMatrix hB _ _).trans (Int.ofNat_le.mpr (le_trans ?_ hmono))
-    exact Nat.mul_le_mul (Nat.factorial_le (Nat.le_succ _))
-      ((Nat.pow_le_pow_left (Nat.le_succ B) _).trans
-        (Nat.pow_le_pow_right B.succ_pos (Nat.le_succ _)))
+    gcongr <;> omega
 
 private theorem divInt_bounds_of_le {a Δ : ℤ} {M : ℕ} (hΔ : Δ ≠ 0)
     (ha : |a| ≤ (M : ℤ)) (hΔle : |Δ| ≤ (M : ℤ)) :

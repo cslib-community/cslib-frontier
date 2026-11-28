@@ -260,7 +260,8 @@ theorem two_mul_pow_fastCutDepth_le_pot {k : ℕ} (hk : 7 ≤ k) :
         _ ≤ 2 * (fastCutThreshold k - 4) ^ 2 := Nat.mul_le_mul_left 2 (ih ht7)
         _ ≤ (k - 4) ^ 2 := two_mul_pot_threshold_le h
     · rw [fastCutDepth_of_lt_seven (by omega)]
-      exact (Nat.pow_le_pow_left (by omega : 3 ≤ k - 4) 2).trans' (by decide)
+      change (2 : ℕ) ^ 2 ≤ (k - 4) ^ 2
+      gcongr; omega
   | case2 k h => omega
 
 /-- The recursion depth of `FastCut` on `k` vertices is at most `2 * Nat.log 2 k`. -/
@@ -440,9 +441,9 @@ theorem fastCutNodeTime_le {n : ℕ} (hn : 2 ≤ n) :
   · calc
       fastCutNodeTime n ≤ (1200 * fastCutDepth n + 2700) * (n - 4) ^ 2 :=
         fastCutNodeTime_le_pot hn7
-      _ ≤ (1200 * (2 * Nat.log 2 n) + 4800) * n ^ 2 :=
-        Nat.mul_le_mul (by have := fastCutDepth_le_two_mul_log n; omega)
-          (Nat.pow_le_pow_left (Nat.sub_le n 4) 2)
+      _ ≤ (1200 * (2 * Nat.log 2 n) + 4800) * n ^ 2 := by
+        have := fastCutDepth_le_two_mul_log n
+        gcongr <;> omega
       _ = 2400 * n ^ 2 * (Nat.log 2 n + 2) := by ring
   · rw [fastCutNodeTime_of_lt_seven (by omega)]
     exact ((Nat.mul_le_mul_left 2400 (Nat.pow_le_pow_left hn 2)).trans' (by decide)).trans

@@ -412,9 +412,9 @@ theorem eventually_isHittingSet_constantDepthHittingSet_circuit (K : Type*) [Fie
     nlinarith
   calc C.toSPFormula.nodeCount ≤ (C.size + n + 1) ^ (2 * C.productDepth + 1) :=
         SPCircuit.nodeCount_toSPFormula_le hC
-    _ ≤ (n ^ (c + 2)) ^ (2 * Δ + 1) :=
-        (Nat.pow_le_pow_left hbase _).trans
-          (Nat.pow_le_pow_right (Nat.one_le_pow _ _ (by omega)) (by omega))
+    _ ≤ (n ^ (c + 2)) ^ (2 * Δ + 1) := by
+        have := Nat.one_le_pow (c + 2) n (by omega)
+        gcongr
     _ = n ^ ((c + 2) * (2 * Δ + 1)) := by rw [← pow_mul]
 
 /-- From an exponent `1 / t` to every real exponent `ε ≥ 1 / t`: `n ^ (1 / t) ≤ n ^ ε` for

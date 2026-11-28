@@ -181,8 +181,8 @@ private theorem exists_nonneg_int_mulVec_eq_le_fin {m n B : ℕ}
     exact_mod_cast congrFun hEq j
   have hcard : Fintype.card J ≤ n := (Fintype.card_subtype_le _).trans_eq (Fintype.card_fin n)
   have hbound : (Fintype.card J).factorial * (m * C ^ 2 + 1) ^ Fintype.card J ≤
-      n.factorial * (m * C ^ 2 + 1) ^ n :=
-    Nat.mul_le_mul (Nat.factorial_le hcard) (Nat.pow_le_pow_right (by omega) hcard)
+      n.factorial * (m * C ^ 2 + 1) ^ n := by
+    gcongr
   refine ⟨x, hx, hAx, fun j => ?_⟩
   by_cases hj : (K : ℤ) ≤ x j
   · have h := hpB ⟨j, hj⟩
