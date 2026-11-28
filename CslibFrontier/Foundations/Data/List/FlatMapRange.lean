@@ -19,6 +19,7 @@ blocks `f 0, …, f (n - 1)`, in increasing or decreasing order.
 
 ## Main results
 
+* `List.length_flatMap_range`: blocks of the same length `K` flatten to a list of length `K * m`.
 * `List.isChain_flatMap_range`, `List.isChain_flatMap_reverse_range`: nonempty chained blocks,
   each linked to the next one, form a chain.
 * `List.head?_flatMap_range`, `List.getLast?_flatMap_range`,
@@ -83,5 +84,10 @@ theorem getLast?_flatMap_reverse_range (hn : 0 < n) (h : f 0 ≠ []) :
   obtain ⟨n, rfl⟩ := Nat.exists_eq_add_of_lt hn
   rw [Nat.zero_add, range_succ_eq_map, reverse_cons, flatMap_append, flatMap_singleton,
     getLast?_append_of_ne_nil _ h]
+
+/-- A `flatMap` over a range of blocks of the same length `K` has length `K * m`. -/
+theorem length_flatMap_range {T : ℕ → List α} {K : ℕ} (hT : ∀ i, (T i).length = K) (m : ℕ) :
+    ((range m).flatMap T).length = K * m := by
+  simp [length_flatMap, hT, Nat.mul_comm]
 
 end List
