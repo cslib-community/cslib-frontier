@@ -392,6 +392,29 @@ example :
     (fun key block _ => length_toggle key block) adaptiveSides_prefixFree
     adaptiveSides_isQueryBounded (by decide)
 
+-- The uniform reduction crosses two depths and three channels, with padding in both draws.
+example :
+    let reduction := cascadeDistinguisher realValid (fun _ => 1) (fun _ => 2)
+      (fun _ => 3) toggle adaptiveSides
+    (reduction 2 []).IsQueryBounded 3 ∧
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn realValid (cascadeFamily (fun _ => 1) toggle) adaptiveSides 2))
+      (ProbComp.eval (prfIdealGameOn realValid id adaptiveSides 2)) =
+      (16 : NNReal) * Game.advantage
+        (ProbComp.eval (prfRealGame (fun _ => 1) toggle reduction 2))
+        (ProbComp.eval (prfIdealGame (fun _ => 1) id reduction 2)) := by
+  have hcut : ∀ word, realValid 2 word = true → word.length ≤ 2 * 1 := by
+    intro word hw
+    have hmem : word ∈ [[false], [true, false], [true, true]] := by
+      simpa [realValid] using hw
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
+    rcases hmem with rfl | rfl | rfl <;> decide
+  refine ⟨isQueryBounded_cascadeDistinguisher adaptiveSides_isQueryBounded, ?_⟩
+  exact advantage_cascade_eq_dyadic (hops := fun _ => 2) (count := fun _ => 3)
+    2 (by decide) (fun _ _ => Nat.one_dvd _) hcut
+    (fun key block _ => length_toggle key block) adaptiveSides_prefixFree
+    adaptiveSides_isQueryBounded
+
 -- A zero-query client has zero endpoint advantage even with a valid empty message.
 example :
     let valid := fun (_ : ℕ) (word : List Bool) => decide (word.length = 0)

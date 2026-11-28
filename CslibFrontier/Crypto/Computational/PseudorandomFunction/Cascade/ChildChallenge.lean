@@ -134,6 +134,31 @@ theorem advantage_cascadeChildChannelOracle_le {count width n : ℕ}
   rw [← hbefore, ← hafter]
   exact hstep ⟨i, hi⟩
 
+/-- Signed gap for the sampled child challenge, so that the result can telescope across
+successive cascade depths. Padding indices reject in both experiments. -/
+theorem succProbability_cascadeChildChannelOracle_eq {count capacity width n : ℕ} [NeZero capacity]
+    (real ideal : PMF (BitString width → BitString n)) {program : WordOracleComp ℕ Bool}
+    (hbudget : program.IsQueryBounded count) (hcapacity : count ≤ capacity) :
+    (Game.succProbability
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle real) program []).map Prod.fst) : ℝ) -
+      Game.succProbability
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle ideal) program []).map Prod.fst) =
+      (capacity : ℝ) *
+        ((Game.succProbability (cascadeChildChallengeGame count capacity real ideal real program) :
+          ℝ) - Game.succProbability
+          (cascadeChildChallengeGame count capacity real ideal ideal program)) := by
+  obtain ⟨hreal, hideal⟩ := childHybrid_endpoints real ideal hbudget
+  rw [← hreal, ← hideal, cascadeChildChallengeGame, cascadeChildChallengeGame]
+  have hrealAt (i : Fin capacity) (h : i.val < count) :=
+    bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program false
+  have hidealAt (i : Fin capacity) (h : i.val < count) :=
+    bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program true
+  simp only [Bool.false_eq_true, ↓reduceIte, Bool.toNat_false, add_zero, Bool.toNat_true]
+    at hrealAt hidealAt
+  simp only [hrealAt, hidealAt]
+  exact Game.succProbability_hybrid_average (fun cut => childHybrid (count := count) real ideal cut
+    program) count capacity hcapacity
+
 /-- For a client with at most `count` child calls, sampling a single challenge channel gives
 the full child-oracle advantage divided by the sampling range. Padding the range to
 `capacity ≥ count` contributes the same rejecting output on both sides. -/
@@ -146,16 +171,9 @@ theorem advantage_cascadeChildChannelOracle_eq {count capacity width n : ℕ} [N
       capacity * Game.advantage
         (cascadeChildChallengeGame count capacity real ideal real program)
         (cascadeChildChallengeGame count capacity real ideal ideal program) := by
-  obtain ⟨hreal, hideal⟩ := childHybrid_endpoints real ideal hbudget
-  rw [← hreal, ← hideal, cascadeChildChallengeGame, cascadeChildChallengeGame]
-  have hrealAt (i : Fin capacity) (h : i.val < count) :=
-    bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program false
-  have hidealAt (i : Fin capacity) (h : i.val < count) :=
-    bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program true
-  simp only [Bool.false_eq_true, ↓reduceIte, Bool.toNat_false, add_zero, Bool.toNat_true]
-    at hrealAt hidealAt
-  simp only [hrealAt, hidealAt]
-  exact Game.advantage_hybrid_average (fun cut => childHybrid (count := count) real ideal cut
-    program) count capacity hcapacity
+  apply NNReal.eq
+  rw [NNReal.coe_mul, NNReal.coe_natCast, Game.coe_advantage, Game.coe_advantage,
+    succProbability_cascadeChildChannelOracle_eq real ideal hbudget hcapacity,
+    abs_mul, Nat.abs_cast]
 
 end Cslib.Crypto
