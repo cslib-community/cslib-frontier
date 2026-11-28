@@ -142,20 +142,7 @@ open scoped Topology
 
 namespace Cslib.GameTheory
 
-/-! ### Private analysis helpers (first-order optimality, concavity, Barbalat) -/
-
-private theorem hasDerivWithinAt_nonpos_of_eventually_le {φ : ℝ → ℝ} {d : ℝ}
-    (hd : HasDerivWithinAt φ d (Ici 0) 0) (hmax : ∀ᶠ t in 𝓝[≥] (0 : ℝ), φ t ≤ φ 0) :
-    d ≤ 0 := by
-  have hlim : Tendsto (slope φ 0) (𝓝[>] 0) (𝓝 d) := by
-    have h1 := hasDerivWithinAt_iff_tendsto_slope.mp (hd.mono Ioi_subset_Ici_self)
-    simpa only [Set.sdiff_singleton_eq_self (notMem_Ioi.mpr le_rfl)] using h1
-  have hle : ∀ᶠ t in 𝓝[>] (0 : ℝ), slope φ 0 t ≤ 0 := by
-    filter_upwards [hmax.filter_mono (nhdsWithin_mono 0 Ioi_subset_Ici_self),
-      self_mem_nhdsWithin] with t ht hpos
-    rw [slope_def_field, sub_zero]
-    exact div_nonpos_of_nonpos_of_nonneg (sub_nonpos.mpr ht) (mem_Ioi.mp hpos).le
-  exact le_of_tendsto hlim hle
+/-! ### Private analysis helpers (concavity, Barbalat) -/
 
 private theorem antitoneOn_Ici_of_hasDerivWithinAt_nonpos {V V' : ℝ → ℝ}
     (hd : ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt V (V' t) (Ici 0) t)
@@ -433,25 +420,6 @@ private theorem hasDerivWithinAt_comp_add_mul {u : ℝ → ℝ} {x d : ℝ}
     rw [Metric.mem_ball, Real.dist_eq, sub_zero, abs_of_nonneg ht.1]
     linarith [ht.2]
   exact (hu0.comp 0 hlin hmaps').mono_of_mem_nhdsWithin (Icc_mem_nhdsGE (half_pos hδ))
-
-private theorem eventually_add_mul_nonneg_nhdsGE {a b : ℝ} (ha : 0 ≤ a) (hb : a = 0 → 0 ≤ b) :
-    ∀ᶠ t in 𝓝[≥] (0 : ℝ), 0 ≤ a + t * b := by
-  rcases eq_or_lt_of_le ha with ha0 | hapos
-  · filter_upwards [self_mem_nhdsWithin] with t ht
-    rw [← ha0, zero_add]
-    exact mul_nonneg (mem_Ici.mp ht) (hb ha0.symm)
-  · have hcont : ContinuousAt (fun t : ℝ => a + t * b) 0 :=
-      continuousAt_const.add (continuousAt_id.mul continuousAt_const)
-    have hmem : ∀ᶠ t in 𝓝 (0 : ℝ), 0 < a + t * b :=
-      hcont.eventually (show Ioi (0 : ℝ) ∈ 𝓝 (a + 0 * b) by
-        simpa only [zero_mul, add_zero] using Ioi_mem_nhds hapos)
-    exact (hmem.filter_mono nhdsWithin_le_nhds).mono fun _ ht => ht.le
-
-private theorem eventually_add_mul_le_nhdsGE {a b c : ℝ} (hac : a ≤ c) (hb : a = c → b ≤ 0) :
-    ∀ᶠ t in 𝓝[≥] (0 : ℝ), a + t * b ≤ c := by
-  have h := eventually_add_mul_nonneg_nhdsGE (a := c - a) (b := -b) (sub_nonneg.mpr hac)
-    fun h0 => neg_nonneg.mpr (hb (by linarith))
-  exact h.mono fun t ht => by linarith
 
 /-! ### Shared dual-dynamics definitions (`projDrift`, `lyapunov`, myopic bid optimality) -/
 

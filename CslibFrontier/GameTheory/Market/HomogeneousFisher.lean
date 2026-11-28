@@ -12,6 +12,7 @@ public import CslibFrontier.GameTheory.Market.EisenbergGale
 public import Mathlib.Analysis.Calculus.FDeriv.Defs
 import CslibFrontier.Foundations.Analysis.Convex.FirstOrder
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Farkas
+import Mathlib.Algebra.BigOperators.Pi
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Analysis.Calculus.Deriv.Add
@@ -122,18 +123,10 @@ bundle `b` and scalar `c > 0`. -/
 @[expose] def IsHomogeneousDegOne (u : (G → ℝ) → ℝ) : Prop :=
   ∀ ⦃b : G → ℝ⦄, (∀ g, 0 ≤ b g) → ∀ ⦃c : ℝ⦄, 0 < c → u (c • b) = c * u b
 
-/-- Expand any vector `v : G → ℝ` in the standard basis `Pi.single g 1`. -/
-private theorem pi_eq_sum_single [Fintype G] [DecidableEq G] (v : G → ℝ) :
-    v = ∑ g : G, v g • Pi.single g (1 : ℝ) := by
-  funext k
-  rw [Finset.sum_apply, Finset.sum_eq_single k
-    (fun g _ hgk => by simp [Pi.single_eq_of_ne (Ne.symm hgk)]) (fun h => (h (mem_univ k)).elim)]
-  simp
-
 private theorem continuousLinearMap_apply_eq_sum [Fintype G] [DecidableEq G]
     (L : (G → ℝ) →L[ℝ] ℝ) (v : G → ℝ) :
     L v = ∑ g : G, L (Pi.single g 1) * v g := by
-  conv_lhs => rw [pi_eq_sum_single v]
+  conv_lhs => rw [pi_eq_sum_univ' v]
   rw [map_sum]
   refine sum_congr rfl fun g _ => ?_
   rw [map_smul, smul_eq_mul, mul_comm]
@@ -344,40 +337,6 @@ theorem IsEisenbergKKT.exists_isEquilibrium_exactClearing [Fintype G] [Decidable
   · have hxeq : x' i = x i := funext fun g => by simp [x', hi]
     rw [hxeq]
     exact heq.2.1 i
-
-/-- First-order directional derivative nonpositivity for a right-differentiable function at a local
-maximum on `[0, ∞)`. -/
-private theorem hasDerivWithinAt_nonpos_of_eventually_le {φ : ℝ → ℝ} {d : ℝ}
-    (hd : HasDerivWithinAt φ d (Ici 0) 0) (hmax : ∀ᶠ t in 𝓝[≥] (0 : ℝ), φ t ≤ φ 0) :
-    d ≤ 0 := by
-  have hlim : Tendsto (slope φ 0) (𝓝[>] 0) (𝓝 d) := by
-    have h1 := hasDerivWithinAt_iff_tendsto_slope.1 (hd.mono Set.Ioi_subset_Ici_self)
-    simpa only [Set.sdiff_singleton_eq_self (notMem_Ioi.2 le_rfl)] using h1
-  have hle : ∀ᶠ t in 𝓝[>] (0 : ℝ), slope φ 0 t ≤ 0 := by
-    filter_upwards [hmax.filter_mono (nhdsWithin_mono 0 Set.Ioi_subset_Ici_self),
-      self_mem_nhdsWithin] with t ht hpos
-    rw [slope_def_field, sub_zero]
-    exact div_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 ht) (mem_Ioi.1 hpos).le
-  exact le_of_tendsto hlim hle
-
-private theorem eventually_add_mul_nonneg_nhdsGE {a b : ℝ} (ha : 0 ≤ a) (hb : a = 0 → 0 ≤ b) :
-    ∀ᶠ t in 𝓝[≥] (0 : ℝ), 0 ≤ a + t * b := by
-  rcases eq_or_lt_of_le ha with ha0 | hapos
-  · filter_upwards [self_mem_nhdsWithin] with t ht
-    rw [← ha0, zero_add]
-    exact mul_nonneg (mem_Ici.1 ht) (hb ha0.symm)
-  · have hcont : ContinuousAt (fun t : ℝ => a + t * b) 0 :=
-      continuousAt_const.add (continuousAt_id.mul continuousAt_const)
-    have hmem : ∀ᶠ t in 𝓝 (0 : ℝ), 0 < a + t * b :=
-      hcont.eventually (show Ioi (0 : ℝ) ∈ 𝓝 (a + 0 * b) by
-        simpa only [zero_mul, add_zero] using Ioi_mem_nhds hapos)
-    exact (hmem.filter_mono nhdsWithin_le_nhds).mono fun _ ht => ht.le
-
-private theorem eventually_add_mul_le_nhdsGE {a b c : ℝ} (hac : a ≤ c) (hb : a = c → b ≤ 0) :
-    ∀ᶠ t in 𝓝[≥] (0 : ℝ), a + t * b ≤ c := by
-  have h := eventually_add_mul_nonneg_nhdsGE (a := c - a) (b := -b) (sub_nonneg.2 hac)
-    fun h0 => neg_nonneg.2 (hb (by linarith))
-  exact h.mono fun t ht => by linarith
 
 /-- **Unconditional KKT existence for Eisenberg's convex program via Farkas' lemma**
 ([CodenottiVaradarajan2007], Section 6.2, p. 141): every maximizer `x` of `M.eisenbergObjective`

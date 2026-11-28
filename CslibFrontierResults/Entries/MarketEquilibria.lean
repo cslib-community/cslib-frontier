@@ -84,8 +84,9 @@ register_result "eisenberg-gale-linear-fisher-equilibria" where
     existence, convexity of equilibrium allocations, and uniqueness of equilibrium utilities and \
     prices, plus the proportional-endowment embedding toLinearExchangeMarket \
     (CodenottiVaradarajan2007, §6.1.7, p. 140). Polynomial-bit rationality of rational instances \
-    (Theorem 5.1 part 4, proved in Vazirani Section 5.9–5.10 via DPSV / Lemma 5.20) remains open \
-    under #7789."
+    (Theorem 5.1 part 4) is formalized in BalancedFlow.lean \
+    (entry fisher-rational-equilibria-polynomial-bit); the full DPSV algorithm (Theorem 5.22) \
+    remains open under #7789."
 
 open Cslib.GameTheory.Market in
 register_result "eisenberg-homogeneous-fisher-program" where

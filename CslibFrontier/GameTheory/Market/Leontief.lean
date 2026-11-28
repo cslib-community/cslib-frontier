@@ -10,7 +10,7 @@ module
 public import CslibFrontier.GameTheory.Bimatrix.Basic
 public import CslibFrontier.GameTheory.Market.Basic
 public import Mathlib.Analysis.Convex.Function
-import CslibFrontier.Foundations.Analysis.Brouwer.Simplex
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Stochastic
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Matrix.Basic
@@ -18,7 +18,6 @@ import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
-import Mathlib.Topology.Algebra.Monoid
 
 /-!
 # Leontief exchange economies and correspondence with bimatrix Nash equilibria
@@ -49,7 +48,8 @@ establishes the exact **one-to-one correspondence**
 `bimatrixLeontiefMarket`: equilibrium utilities `(U, V)` correspond via payoff scaling
 `(U, V) = (v₂⁻¹ • x, v₁⁻¹ • y)` to Nash strategies, and each Nash support induces a strictly
 positive column-stochastic bipartite price transfer whose unique stationary distribution (proved
-via Brouwer's fixed-point theorem and strict `ℓ₁` contraction) determines `π` uniquely.
+via `Matrix.exists_vecMul_eq_self_of_mem_rowStochastic` and strict `ℓ₁` contraction) determines
+`π` uniquely.
 
 ## Main definitions
 
@@ -344,36 +344,21 @@ noncomputable def toExchangeMarket : ExchangeMarket I G where
 end LeontiefExchangeMarket
 
 /-- Existence and uniqueness of the stationary probability vector of a strictly positive
-column-stochastic matrix (`∀ i j, 0 < K i j` and `∀ j, ∑ i, K i j = 1`), via Brouwer's fixed-point
-theorem on the simplex and strict `ℓ₁` triangle inequality. -/
+column-stochastic matrix (`∀ i j, 0 < K i j` and `∀ j, ∑ i, K i j = 1`), via
+`Matrix.exists_vecMul_eq_self_of_mem_rowStochastic` on `Kᵀ` and strict `ℓ₁` triangle inequality. -/
 private theorem existsUnique_stationary_of_pos_colStochastic {T : Type*} [Fintype T] [Nonempty T]
     {K : Matrix T T ℝ} (hpos : ∀ i j : T, 0 < K i j) (hcol : ∀ j : T, ∑ i : T, K i j = 1) :
     ∃! v : T → ℝ, (∀ i, 0 ≤ v i) ∧ (∑ i : T, v i = 1) ∧ K *ᵥ v = v := by
-  -- Existence via `Cslib.Brouwer.exists_isFixedPt_pi_simplex`.
-  let F : (Unit → T → ℝ) → Unit → T → ℝ := fun y _ => K *ᵥ (y ())
-  have hmaps : Set.MapsTo F
-      {y | ∀ _ : Unit, (∀ i, 0 ≤ y () i) ∧ ∑ i, y () i = 1}
-      {y | ∀ _ : Unit, (∀ i, 0 ≤ y () i) ∧ ∑ i, y () i = 1} := by
-    intro y hy _
-    obtain ⟨hy0, hy1⟩ := hy ()
-    refine ⟨fun i => sum_nonneg fun j _ => mul_nonneg (hpos i j).le (hy0 j), ?_⟩
-    simp only [F, mulVec, dotProduct]
-    rw [sum_comm]
-    calc ∑ j : T, ∑ i : T, K i j * y () j
-        = ∑ j : T, (∑ i : T, K i j) * y () j := sum_congr rfl fun j _ => (sum_mul _ _ _).symm
-      _ = ∑ j : T, y () j := sum_congr rfl fun j _ => by rw [hcol j, one_mul]
-      _ = 1 := hy1
-  have hcont : ContinuousOn F {y | ∀ _ : Unit, (∀ i, 0 ≤ y () i) ∧ ∑ i, y () i = 1} :=
-    (continuous_pi fun _ => continuous_pi fun i =>
-      continuous_finsetSum univ fun j _ =>
-        continuous_const.mul ((continuous_apply j).comp (continuous_apply ()))).continuousOn
-  obtain ⟨yFix, hyFix_mem, hyFix_pt⟩ := Cslib.Brouwer.exists_isFixedPt_pi_simplex hmaps hcont
-  refine ⟨yFix (), ⟨(hyFix_mem ()).1, (hyFix_mem ()).2, congrFun hyFix_pt ()⟩, ?_⟩
-  -- Uniqueness via strict `ℓ₁` triangle inequality on `w = v - yFix ()`.
+  classical
+  have hKT : Kᵀ ∈ rowStochastic ℝ T :=
+    mem_rowStochastic_iff_sum.2
+      ⟨fun i j => (hpos j i).le, fun j => by simpa only [transpose_apply] using hcol j⟩
+  obtain ⟨v₀, hv₀_nn, hv₀_sum, hv₀_vecMul⟩ :=
+    Matrix.exists_vecMul_eq_self_of_mem_rowStochastic hKT
+  have hv₀_fix : K *ᵥ v₀ = v₀ := by rwa [← vecMul_transpose]
+  refine ⟨v₀, ⟨hv₀_nn, hv₀_sum, hv₀_fix⟩, ?_⟩
+  -- Uniqueness via strict `ℓ₁` triangle inequality on `w = v - v₀`.
   rintro v ⟨hv0, hv1, hv_fix⟩
-  set v₀ := yFix ()
-  have hv₀_sum : ∑ i : T, v₀ i = 1 := (hyFix_mem ()).2
-  have hv₀_fix : K *ᵥ v₀ = v₀ := congrFun hyFix_pt ()
   by_contra hne
   let w : T → ℝ := fun i => v i - v₀ i
   have hw_fix : K *ᵥ w = w := by

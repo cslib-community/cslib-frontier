@@ -333,15 +333,6 @@ theorem cesUtility_smul {α b : G → ℝ} {ρ c : ℝ}
   · rw [cesUtility_of_pos_exp hpos, cesUtility_of_pos_exp hpos]
     exact hsum_eq
 
-/-- Zero scaling of `cesUtility α ρ`: `cesUtility α ρ 0 = 0` for `ρ ≠ 0` on any nonempty `G`. -/
-theorem cesUtility_zero [Nonempty G] (α : G → ℝ) {ρ : ℝ} (hρ : ρ ≠ 0) :
-    cesUtility α ρ 0 = 0 := by
-  rcases lt_or_gt_of_ne hρ with hneg | hpos
-  · exact cesUtility_of_neg_of_exists_nonpos α hneg ⟨Classical.arbitrary G, le_rfl⟩
-  · rw [cesUtility_of_pos_exp hpos]
-    simp only [Pi.zero_apply, Real.zero_rpow hpos.ne', mul_zero, sum_const_zero]
-    exact Real.zero_rpow (one_div_ne_zero hpos.ne')
-
 /-- Monotonicity of `cesUtility α ρ` on nonnegative bundles for `α ≥ 0` and `ρ ≠ 0`. -/
 theorem cesUtility_mono {α b₁ b₂ : G → ℝ} {ρ : ℝ}
     (hα : ∀ g, 0 ≤ α g) (hρ : ρ ≠ 0) (hb₁ : ∀ g, 0 ≤ b₁ g) (hle : ∀ g, b₁ g ≤ b₂ g) :

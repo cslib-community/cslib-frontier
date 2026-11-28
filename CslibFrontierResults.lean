@@ -41,6 +41,7 @@ import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.BoostingMargin
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.NonCooperativeComputation
+import CslibFrontierResults.Entries.DigitalGoodsBoundsCEPE
 import CslibFrontierResults.Entries.CountingContainments
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry
@@ -65,12 +66,14 @@ import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.SpreadFamilies
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.DominanceSymmetric
+import CslibFrontierResults.Entries.PredictionMarketNoTradeMatching
 import CslibFrontierResults.Entries.SergeevMonotoneShift
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.CombinatorialAuctionQueryComm
 import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.PredictionMarket
+import CslibFrontierResults.Entries.WrapperMechanisms
 import CslibFrontierResults.Entries.ODonnellDNFWidth
 import CslibFrontierResults.Entries.UniformFanIn
 import CslibFrontierResults.Entries.RelabelToFront
@@ -101,6 +104,7 @@ import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.UtilityGame
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.SergeevPrefixDepth
+import CslibFrontierResults.Entries.BalancedFlow
 import CslibFrontierResults.Entries.MarketEquilibria
 import CslibFrontierResults.Entries.ExtensiveSequenceLP
 import CslibFrontierResults.Entries.DigitalGoods
@@ -109,4 +113,5 @@ import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.ODonnellBiasedFourier
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
+import CslibFrontierResults.Entries.BimatrixNashHardness
 import CslibFrontierResults.Entries.SatisfiabilityHypothesis

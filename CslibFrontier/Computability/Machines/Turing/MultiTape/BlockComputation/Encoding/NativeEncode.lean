@@ -17,6 +17,7 @@ import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Pi
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
 # Native serialization of runtime-width block results
@@ -145,9 +146,7 @@ theorem windowWord_inSpace : ComputableInSpace windowWord (encList encNat) (encL
     rw [foldl_cells, List.nil_append]
     have hl := length_le_length_encList encNat cells
     have hw := length_windowWord (cells.take i)
-    have hbool (l : List Bool) : (encList encBool l).length = 3 * l.length := by
-      simp [length_encList, encBool_apply, Nat.mul_comm]
-    rw [hbool, hw]
+    rw [length_encList_encBool, hw]
     nlinarith [List.length_take_le i cells]
   have hspace (cells : List ℕ) (i : ℕ) (hi : i < cells.length) :
       (encPair (encList encBool) encNat

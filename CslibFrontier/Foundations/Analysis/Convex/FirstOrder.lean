@@ -48,6 +48,9 @@ These are the forms of convexity and strong convexity assumed by online convex o
   to `K` at every point of `K` is (strictly) convex on `K`.
 * `abs_sub_le_of_forall_add_inner_le`: subgradients of norm at most `ρ` make the function
   `ρ`-Lipschitz on `K`.
+* `hasDerivWithinAt_nonpos_of_eventually_le`, `eventually_add_mul_nonneg_nhdsGE`,
+  `eventually_add_mul_le_nhdsGE`: first-order right-derivative optimality and feasible boundary-ray
+  helpers on `[0, ∞)` (used for KKT multiplier extraction on polyhedral domains).
 
 ## References
 
@@ -56,8 +59,8 @@ These are the forms of convexity and strong convexity assumed by online convex o
 
 public section
 
-open Set
-open scoped RealInnerProductSpace
+open Filter Set
+open scoped RealInnerProductSpace Topology
 
 section Normed
 
@@ -250,3 +253,46 @@ theorem StrongConvexOn.add_inner_add_le_of_hasGradientAt {m : ℝ} (hf : StrongC
     (hasGradientWithinAt_iff_hasFDerivWithinAt.mpr hg.hasFDerivAt.hasFDerivWithinAt)
 
 end InnerProduct
+
+section RightBoundary
+
+/-- First-order directional derivative nonpositivity for a right-differentiable function at a local
+maximum on `[0, ∞)`: if `φ` has right derivative `d` at `0` within `[0, ∞)` and `φ t ≤ φ 0`
+eventually as `t → 0⁺`, then `d ≤ 0`. -/
+theorem hasDerivWithinAt_nonpos_of_eventually_le {φ : ℝ → ℝ} {d : ℝ}
+    (hd : HasDerivWithinAt φ d (Ici 0) 0) (hmax : ∀ᶠ t in 𝓝[≥] (0 : ℝ), φ t ≤ φ 0) :
+    d ≤ 0 := by
+  have hlim : Tendsto (slope φ 0) (𝓝[>] 0) (𝓝 d) := by
+    have h1 := hasDerivWithinAt_iff_tendsto_slope.1 (hd.mono Ioi_subset_Ici_self)
+    simpa only [Set.sdiff_singleton_eq_self (notMem_Ioi.2 le_rfl)] using h1
+  have hle : ∀ᶠ t in 𝓝[>] (0 : ℝ), slope φ 0 t ≤ 0 := by
+    filter_upwards [hmax.filter_mono (nhdsWithin_mono 0 Ioi_subset_Ici_self),
+      self_mem_nhdsWithin] with t ht hpos
+    rw [slope_def_field, sub_zero]
+    exact div_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 ht) (mem_Ioi.1 hpos).le
+  exact le_of_tendsto hlim hle
+
+/-- If `a ≥ 0` and any boundary point `a = 0` moves inward (`b ≥ 0`), then `0 ≤ a + t * b` holds
+eventually as `t → 0⁺`. -/
+theorem eventually_add_mul_nonneg_nhdsGE {a b : ℝ} (ha : 0 ≤ a) (hb : a = 0 → 0 ≤ b) :
+    ∀ᶠ t in 𝓝[≥] (0 : ℝ), 0 ≤ a + t * b := by
+  rcases eq_or_lt_of_le ha with ha0 | hapos
+  · filter_upwards [self_mem_nhdsWithin] with t ht
+    rw [← ha0, zero_add]
+    exact mul_nonneg (mem_Ici.1 ht) (hb ha0.symm)
+  · have hcont : ContinuousAt (fun t : ℝ => a + t * b) 0 :=
+      continuousAt_const.add (continuousAt_id.mul continuousAt_const)
+    have hmem : ∀ᶠ t in 𝓝 (0 : ℝ), 0 < a + t * b :=
+      hcont.eventually (show Ioi (0 : ℝ) ∈ 𝓝 (a + 0 * b) by
+        simpa only [zero_mul, add_zero] using Ioi_mem_nhds hapos)
+    exact (hmem.filter_mono nhdsWithin_le_nhds).mono fun _ ht => ht.le
+
+/-- If `a ≤ c` and any tight point `a = c` moves weakly downward (`b ≤ 0`), then `a + t * b ≤ c`
+holds eventually as `t → 0⁺`. -/
+theorem eventually_add_mul_le_nhdsGE {a b c : ℝ} (hac : a ≤ c) (hb : a = c → b ≤ 0) :
+    ∀ᶠ t in 𝓝[≥] (0 : ℝ), a + t * b ≤ c := by
+  have h := eventually_add_mul_nonneg_nhdsGE (a := c - a) (b := -b) (sub_nonneg.2 hac)
+    fun h0 => neg_nonneg.2 (hb (by linarith))
+  exact h.mono fun t ht => by linarith
+
+end RightBoundary
