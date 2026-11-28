@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.CellProbe.Randomized.StateTransition
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Oblivious-Sequence Cell-Probe Implementations and Zero-Error Yao Averaging
@@ -358,15 +359,8 @@ private theorem tsum_mul_le_init_add {Op : Type v} {Result : Op → Type} {cells
       P.expectedSeqProbes ops ≤ (initPotential : ℝ≥0∞) + cost ops) :
     (∑' ops, hardDist ops * P.expectedSeqProbes ops) ≤
       (initPotential : ℝ≥0∞) + ∑' ops, hardDist ops * cost ops := by
-  calc
-    (∑' ops, hardDist ops * P.expectedSeqProbes ops)
-      ≤ ∑' ops, hardDist ops * ((initPotential : ℝ≥0∞) + cost ops) := by
-          refine tsum_le_tsum fun ops => ?_
-          by_cases hops : ops ∈ hardDist.support
-          · exact mul_le_mul_right (hcost ops hops) _
-          · rw [(PMF.apply_eq_zero_iff _ _).mpr hops, zero_mul, zero_mul]
-    _ = (initPotential : ℝ≥0∞) + ∑' ops, hardDist ops * cost ops := by
-          simp_rw [mul_add, tsum_add, ENNReal.tsum_mul_right, hardDist.tsum_coe, one_mul]
+  exact (Probability.PMF.tsum_mul_mono_support hardDist hcost).trans_eq
+    (Probability.PMF.tsum_mul_add_of_support hardDist fun _ _ => rfl)
 
 /-- Zero-error Yao averaging (easy direction [Yao1977]) packaged directly for an
 `ObliviousSequenceImpl (D.toObliviousSequenceSpec s₀) P` on a deterministic specification

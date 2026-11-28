@@ -859,21 +859,15 @@ private theorem steps_trace_amortized (C : StateTransitionImpl D P s₀)
           (∑' u₁, ν₁ u₁ * (D.totalCostTranscript C.charge s₀ u₁.trace : ℝ≥0∞)) =
             (∑' u, ν u * (D.totalCostTranscript C.charge s₀ u.trace : ℝ≥0∞)) +
               ∑' u, ν u * (C.charge u.state o : ℝ≥0∞) := by
-        rw [PMF.tsum_bind_mul]
-        have hinner (u : TraceState C.Seed D cells w) :
-            ν u * (∑' u₁, ((μ_step (traceToCoupled u)).map (liftStep u)) u₁ *
-                (D.totalCostTranscript C.charge s₀ u₁.trace : ℝ≥0∞)) =
-              ν u * (D.totalCostTranscript C.charge s₀ u.trace : ℝ≥0∞) +
-                ν u * (C.charge u.state o : ℝ≥0∞) := by
-          by_cases hu : u ∈ ν.support
-          · have htot (q) : (D.totalCostTranscript C.charge s₀ (liftStep u q).trace : ℝ≥0∞) =
-                (D.totalCostTranscript C.charge s₀ u.trace : ℝ≥0∞) +
-                  (C.charge u.state o : ℝ≥0∞) := by
-              simp [liftStep, D.totalCostTranscript_append C.charge (hsupp u hu).2.1]
-            simp only [PMF.tsum_map_mul, htot, mul_add, tsum_add, ENNReal.tsum_mul_right,
-              (μ_step (traceToCoupled u)).tsum_coe, one_mul]
-          · simp [(PMF.apply_eq_zero_iff _ _).mpr hu]
-        simp only [hinner, tsum_add]
+        rw [PMF.tsum_bind_mul, ← tsum_add]
+        simp_rw [← mul_add]
+        refine Cslib.Probability.PMF.tsum_mul_congr_support ν fun u hu => ?_
+        have htot (q) : (D.totalCostTranscript C.charge s₀ (liftStep u q).trace : ℝ≥0∞) =
+            (D.totalCostTranscript C.charge s₀ u.trace : ℝ≥0∞) +
+              (C.charge u.state o : ℝ≥0∞) := by
+          simp [liftStep, D.totalCostTranscript_append C.charge (hsupp u hu).2.1]
+        simp only [PMF.tsum_map_mul, htot, ENNReal.tsum_mul_right,
+          (μ_step (traceToCoupled u)).tsum_coe, one_mul]
       rw [expectedSeqProbes_snoc P prefOps o, ← hmarg, PMF.tsum_map_mul, hcost₁, add_assoc]
       refine (add_le_add le_rfl hstep_u).trans ?_
       rw [add_comm (∑' u, ν u * (C.charge u.state o : ℝ≥0∞)), ← add_assoc, ← add_assoc]

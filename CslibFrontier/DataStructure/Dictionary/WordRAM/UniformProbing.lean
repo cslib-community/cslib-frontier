@@ -18,6 +18,7 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
@@ -1468,15 +1469,11 @@ private theorem tsum_probeCount_le {α : Type*} {c_exp U n_max : ℕ}
   have hrep_max : ∀ θ : Seed c_exp n_max,
       DoubleHashing.OrderedTableRep (probePerm θ) s (T_max θ) :=
     fun θ => orderedTableRep_maxOrderedTable (probePerm θ) s hdom u
-  have hpt : ∀ p, ν p * (T_probe p : ℝ≥0∞) ≤
-      ν p * (probeCount (T_max p.1) u (probePerm p.1 u) : ℝ≥0∞) := fun p => by
-    by_cases hp : p ∈ ν.support
-    · obtain ⟨_, T, hrep_T, hle⟩ := hT p hp
-      exact mul_le_mul_of_nonneg_left
-        (Nat.cast_le.mpr (hle.trans (probeCount_le_maxOrderedTable _ hdom u hrep_T))) zero_le
-    · simp [(PMF.apply_eq_zero_iff _ _).mpr hp]
   calc (∑' p, ν p * (T_probe p : ℝ≥0∞))
-      ≤ ∑' p, ν p * (probeCount (T_max p.1) u (probePerm p.1 u) : ℝ≥0∞) := tsum_le_tsum hpt
+      ≤ ∑' p, ν p * (probeCount (T_max p.1) u (probePerm p.1 u) : ℝ≥0∞) := by
+        refine Cslib.Probability.PMF.tsum_mul_mono_support ν fun p hp => ?_
+        obtain ⟨_, T, hrep_T, hle⟩ := hT p hp
+        exact Nat.cast_le.mpr (hle.trans (probeCount_le_maxOrderedTable _ hdom u hrep_T))
     _ = ∑' θ, (ν.map Prod.fst) θ * (probeCount (T_max θ) u (probePerm θ u) : ℝ≥0∞) :=
         (Cslib.Probability.PMF.tsum_map_mul ν Prod.fst
           (fun θ => (probeCount (T_max θ) u (probePerm θ u) : ℝ≥0∞))).symm

@@ -14,6 +14,7 @@ public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analysis
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -831,13 +832,8 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
           PMF.uniformOfFinset
             (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) (stepKeys ks o)) hE'
       have hmap_bind : ν₁.map Prod.fst = (ν.map Prod.fst).bind f := by
-        ext θ'
-        rw [PMF.map_bind, PMF.bind_apply, PMF.bind_apply,
-          Cslib.Probability.PMF.tsum_map_mul ν Prod.fst (fun θ => f θ θ')]
-        refine tsum_congr fun p => ?_
-        by_cases hp : p ∈ ν.support
-        · rw [(hstep_spec p hp).2.1]
-        · simp [(PMF.apply_eq_zero_iff _ _).mpr hp]
+        rw [PMF.map_bind, PMF.bind_map]
+        exact Cslib.Probability.PMF.bind_congr_on_support ν _ _ fun p hp => (hstep_spec p hp).2.1
       rw [hmap_bind, hseed]
       exact unifOn_rehash_eq (survivingSeeds_stepKeys_subset c_exp n_max ks o) hE hE'
     have hsupp₁ : ∀ q ∈ ν₁.support,

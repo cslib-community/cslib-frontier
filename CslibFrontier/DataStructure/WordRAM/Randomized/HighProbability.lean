@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.WramOmega
@@ -1198,33 +1199,30 @@ theorem step_whp (C : HighProbStateTransitionImpl P D w base params s₀)
     exact ⟨a, hst, hdec, hrep_p, C.bounded hrep_p, hmod_p⟩
   · refine (one_sub_le_toOuterMeasure_le _ Prod.snd _ (hbind_eq ▸ hfail₁)).trans ?_
     rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-    refine tsum_le_tsum fun t => ?_
-    by_cases ht : t ∈ ν.support
-    · refine mul_le_mul_right ?_ _
-      obtain ⟨hm_t, heval_t, hp_t⟩ :=
-        hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
-      let Q_t : Data r_ds → Prop := fun y =>
-        ∃ (q : CoupledState C.Seed D.State r_ds) (a : D.Result o),
-          q.data = y ∧ D.step t.state o q.state a ∧ C.decode o q.data.regs = some a ∧
-          C.ghostRep (C.ghostStep g o) q.seed q.state q.data ∧ q.data.Bounded w ∧
-          Modifies (Block.mk base C.space).footprint t.data.mem q.data.mem
-      have hQ_t : ∀ z ∈ (m_step (prepMap t)).eval.support, Q_t z.1 := by
-        intro z hz
-        rw [← heval_t] at hz
-        supp_cases hz with ⟨p, hp, rfl⟩
-        obtain ⟨a, hst, hdec, hrep_p, hmod_p⟩ := hp_t p hp
-        exact ⟨p.1, a, rfl, hst, hdec, hrep_p, C.bounded hrep_p, hmod_p⟩
-      have hm_le : (μ_op t).toOuterMeasure {p | p.2 ≤ C.worstCaseTime} ≤
-          1 - (m_op t).eval.toOuterMeasure {z | C.worstCaseTime < z.2} := by
-        change _ ≤ 1 - (m_step (prepMap t)).eval.toOuterMeasure _
-        rw [← heval_t, PMF.toOuterMeasure_map_apply]
-        simpa [Set.compl_ofPred] using
-          PMF.toOuterMeasure_compl_le_one_sub (μ_op t) {p | C.worstCaseTime < p.2} le_rfl
-      refine hm_le.trans ((hm_t.one_sub_le_evalRand_program out C.worstCaseTime hQ_t le_rfl).trans
-        (MeasureTheory.measure_mono fun cfg hcfg => ?_))
-      rcases hcfg with ⟨y, rfl, q, a, rfl, hst, hdec, hrep_q, hbdd_q, hmod_q⟩
-      exact ⟨t, q, a, ht, rfl, hst, hdec, hrep_q, hbdd_q, hmod_q⟩
-    · simp [(PMF.apply_eq_zero_iff _ _).mpr ht]
+    refine Cslib.Probability.PMF.tsum_mul_mono_support ν fun t ht => ?_
+    obtain ⟨hm_t, heval_t, hp_t⟩ :=
+      hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
+    let Q_t : Data r_ds → Prop := fun y =>
+      ∃ (q : CoupledState C.Seed D.State r_ds) (a : D.Result o),
+        q.data = y ∧ D.step t.state o q.state a ∧ C.decode o q.data.regs = some a ∧
+        C.ghostRep (C.ghostStep g o) q.seed q.state q.data ∧ q.data.Bounded w ∧
+        Modifies (Block.mk base C.space).footprint t.data.mem q.data.mem
+    have hQ_t : ∀ z ∈ (m_step (prepMap t)).eval.support, Q_t z.1 := by
+      intro z hz
+      rw [← heval_t] at hz
+      supp_cases hz with ⟨p, hp, rfl⟩
+      obtain ⟨a, hst, hdec, hrep_p, hmod_p⟩ := hp_t p hp
+      exact ⟨p.1, a, rfl, hst, hdec, hrep_p, C.bounded hrep_p, hmod_p⟩
+    have hm_le : (μ_op t).toOuterMeasure {p | p.2 ≤ C.worstCaseTime} ≤
+        1 - (m_op t).eval.toOuterMeasure {z | C.worstCaseTime < z.2} := by
+      change _ ≤ 1 - (m_step (prepMap t)).eval.toOuterMeasure _
+      rw [← heval_t, PMF.toOuterMeasure_map_apply]
+      simpa [Set.compl_ofPred] using
+        PMF.toOuterMeasure_compl_le_one_sub (μ_op t) {p | C.worstCaseTime < p.2} le_rfl
+    refine hm_le.trans ((hm_t.one_sub_le_evalRand_program out C.worstCaseTime hQ_t le_rfl).trans
+      (MeasureTheory.measure_mono fun cfg hcfg => ?_))
+    rcases hcfg with ⟨y, rfl, q, a, rfl, hst, hdec, hrep_q, hbdd_q, hmod_q⟩
+    exact ⟨t, q, a, ht, rfl, hst, hdec, hrep_q, hbdd_q, hmod_q⟩
 
 /-- **Per-operation with-high-probability worst-case bound for functional specifications
 (`step_whp_ofFn`).** -/
@@ -1342,24 +1340,24 @@ private theorem toOuterMeasure_appendStep_gt_le {Seed : Type} {D : StateTransiti
     τ.toOuterMeasure {tr | B < tr.maxSteps} +
       ((τ.map WhpSeqOutcome.current).bind μ_op).toOuterMeasure {p | B < p.2} := by
   classical
-  rw [PMF.bind_map, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply,
+  rw [PMF.bind_map, PMF.toOuterMeasure_bind_apply,
+    Cslib.Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator,
     PMF.toOuterMeasure_bind_apply, ← tsum_add]
-  refine tsum_le_tsum fun tr => ?_
-  by_cases htr : tr ∈ τ.support
-  · rw [PMF.toOuterMeasure_map_apply]
-    dsimp only [Function.comp_apply]
-    by_cases hprev : B < tr.maxSteps
-    · rw [Set.indicator_of_mem hprev]
-      calc
-        τ tr * (μ_step tr.current).toOuterMeasure _
-          ≤ τ tr * 1 := mul_le_mul_right (PMF.toOuterMeasure_le_one _ _) _
-        _ ≤ τ tr + τ tr * (μ_op tr.current).toOuterMeasure _ := by simp
-    · rw [Set.indicator_of_notMem hprev, zero_add, ← hproj tr.current,
-        PMF.toOuterMeasure_map_apply]
-      refine mul_le_mul_right (MeasureTheory.measure_mono fun p hp => ?_) _
-      simp only [Set.mem_preimage, Set.mem_ofPred_eq, WhpSeqOutcome.appendStep] at hp ⊢
-      omega
-  · simp [(PMF.apply_eq_zero_iff _ _).mpr htr]
+  simp only [← mul_add]
+  refine tsum_le_tsum fun tr => mul_le_mul_right ?_ _
+  rw [PMF.toOuterMeasure_map_apply]
+  dsimp only [Function.comp_apply]
+  by_cases hprev : B < tr.maxSteps
+  · rw [Set.indicator_of_mem hprev]
+    calc
+      (μ_step tr.current).toOuterMeasure _
+        ≤ 1 := PMF.toOuterMeasure_le_one _ _
+      _ ≤ 1 + (μ_op tr.current).toOuterMeasure _ := le_self_add
+  · rw [Set.indicator_of_notMem hprev, zero_add, ← hproj tr.current,
+      PMF.toOuterMeasure_map_apply]
+    refine MeasureTheory.measure_mono fun p hp => ?_
+    simp only [Set.mem_preimage, Set.mem_ofPred_eq, WhpSeqOutcome.appendStep] at hp ⊢
+    omega
 
 /-- **Whole-sequence trajectory execution and union bound (`steps_whp`).**
 Across any admissible sequence `ops : List D.Op`, starting from trajectory distribution `τ` whose

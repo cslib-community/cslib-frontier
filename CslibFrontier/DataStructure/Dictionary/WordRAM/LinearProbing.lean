@@ -16,6 +16,7 @@ import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Probability.PMF.SupportTsum
 public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.UpdateSimp
@@ -770,15 +771,12 @@ theorem tsum_probeLen_le {α : Type*} {U V n_max base : ℕ}
   obtain ⟨p₀, hp₀⟩ := ν.support_nonempty
   obtain ⟨_, hinv₀, _⟩ := hT p₀ hp₀
   set S := (Dictionary.dom s).erase u
-  have hpt : ∀ p, ν p * (T_probe p : ℝ≥0∞) ≤
-      ν p * (maxWitnessProbe U n_max S u p.1 : ℝ≥0∞) := fun p => by
-    by_cases hp : p ∈ ν.support
-    · obtain ⟨_, hinv, hle⟩ := hT p hp
-      exact mul_le_mul_of_nonneg_left (Nat.cast_le.mpr <| hle.trans <| le_maxWitnessProbe
-        (hinv.probeLen_le_card_erase u _) fun ht => hinv.hasClusterWitness_probeLen u ht) zero_le
-    · simp [(PMF.apply_eq_zero_iff _ _).mpr hp]
   calc (∑' p, ν p * (T_probe p : ℝ≥0∞))
-      ≤ ∑' p, ν p * (maxWitnessProbe U n_max S u p.1 : ℝ≥0∞) := tsum_le_tsum hpt
+      ≤ ∑' p, ν p * (maxWitnessProbe U n_max S u p.1 : ℝ≥0∞) := by
+        refine Cslib.Probability.PMF.tsum_mul_mono_support ν fun p hp => ?_
+        obtain ⟨_, hinv, hle⟩ := hT p hp
+        exact Nat.cast_le.mpr <| hle.trans <| le_maxWitnessProbe
+          (hinv.probeLen_le_card_erase u _) fun ht => hinv.hasClusterWitness_probeLen u ht
     _ = ∑' θ, (ν.map Prod.fst) θ * (maxWitnessProbe U n_max S u θ : ℝ≥0∞) :=
         (Cslib.Probability.PMF.tsum_map_mul ν Prod.fst
           fun θ => (maxWitnessProbe U n_max S u θ : ℝ≥0∞)).symm
