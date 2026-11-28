@@ -516,10 +516,10 @@ private theorem one_le_sum_toReal_tsum {β : Type*} (π : PMF β) (S : Finset α
   simp_rw [htoReal_inc]
   have hsum_enn : (1 : ℝ≥0∞) ≤ ∑ x ∈ S, ∑' b, π b * step b x := by
     rw [sum_tsum_ennreal]
-    simp only [← Finset.mul_sum]
     calc (1 : ℝ≥0∞) = ∑' b, π b * 1 := by simp only [mul_one, π.tsum_coe]
       _ ≤ ∑' b, π b * ∑ x ∈ S, step b x :=
         Cslib.Probability.PMF.tsum_mul_mono_support π hsum
+      _ = _ := by simp only [Finset.mul_sum]
   have hsum_ne_top : (∑ x ∈ S, ∑' b, π b * step b x) ≠ ⊤ :=
     ENNReal.sum_ne_top.mpr fun x _ => hterm_ne_top x
   have hreal := ENNReal.toReal_mono hsum_ne_top hsum_enn
