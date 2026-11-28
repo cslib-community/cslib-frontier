@@ -2789,6 +2789,7 @@ public import CslibFrontier.DataStructure.FusionTree.WordRAM.MSBProgram
 public import CslibFrontier.Privacy.DifferentialPrivacy.DiscreteLaplace
 public import CslibFrontier.Logics.FirstOrder.EhrenfeuchtFraisse.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Basis.PairAtlas
+public import CslibFrontier.MachineLearning.InductiveInference.FormalLanguages
 public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.DecryptionCircuit.PolyTime
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct.Kernel
@@ -7853,6 +7854,7 @@ public import CslibFrontier.Probability.Option
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.BitBudget
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Circuit
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
+public import CslibFrontier.MachineLearning.InductiveInference.Basic
 public import CslibFrontier.Logics.SecondOrder.Projection
 public import CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
 public import CslibFrontier.Foundations.Probability.Gaussian.Convolution

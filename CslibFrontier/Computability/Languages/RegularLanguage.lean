@@ -36,6 +36,7 @@ the existing CSLib closures, with no set-builder restatement: `hP.inf hQ` proves
   `Cslib.Language.IsRegular.setOf_exists_getElem`: regularity of the positional languages.
 * `Cslib.Language.IsRegular.setOf_forall`: regularity of a finite conjunction of regular
   conditions.
+* `Cslib.Language.IsRegular.of_finite`: every finite language is regular.
 
 ## References
 
@@ -125,5 +126,27 @@ theorem IsRegular.setOf_forall {ι : Type*} [Finite ι] {P : ι → List Symbol 
   refine (congrArg Language.IsRegular (Set.ext fun w => ?_)).mp
     (IsRegular.iInf (s := Set.univ) fun i _ => h i)
   exact Set.mem_iInter₂.trans (by simp)
+
+/-- A single word forms a regular language. -/
+theorem IsRegular.singleton (w : List Symbol) : ({w} : Language Symbol).IsRegular := by
+  induction w with
+  | nil => exact IsRegular.one
+  | cons a w ih =>
+    refine (congrArg Language.IsRegular (Set.ext fun v => ?_)).mp
+      (IsRegular.mul (IsRegular.char a) ih)
+    change v ∈ ({[a]} * {w} : Language Symbol) ↔ v = a :: w
+    rw [Language.mem_mul]
+    exact ⟨fun ⟨x, hx, y, hy, h⟩ => by
+      rw [← h, show x = [a] from hx, show y = w from hy]; rfl,
+      fun h => ⟨[a], rfl, w, rfl, (show v = a :: w from h).symm⟩⟩
+
+/-- Every finite language is regular. -/
+theorem IsRegular.of_finite {l : Language Symbol} (h : Set.Finite (α := List Symbol) l) :
+    l.IsRegular := by
+  induction l, h using Set.Finite.induction_on with
+  | empty => exact IsRegular.zero
+  | @insert w s _ _ ih =>
+    exact (congrArg Language.IsRegular (Set.insert_eq w s).symm).mp
+      ((IsRegular.singleton w).add ih)
 
 end Cslib.Language
